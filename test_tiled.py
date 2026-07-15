@@ -106,6 +106,13 @@ def test_render_subs(tmp_path):
     assert a != b
 
 
+def test_render_size_guard(clip, tmp_path):
+    # 1 row upscaled to 4k: loop = all 100 frames, temp canvas ~4.6 GiB
+    with pytest.raises(ValueError, match="GiB"):
+        render(clip, str(tmp_path / "x.mp4"), 1, (3840, 2160), 30, 0,
+               np.zeros(3, np.uint8), False, 1)
+
+
 def test_render_pad_bg(clip, tmp_path):
     out = str(tmp_path / "out.webm")
     render(clip, out, 3, (64, 36), 30, 1, parse_color("ff0000"), True, 2)

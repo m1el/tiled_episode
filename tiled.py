@@ -68,6 +68,10 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops,
     n_loop = frames // slots
     if n_loop < 1:
         raise ValueError(f"input has {frames} frames, fewer than {slots} tiles")
+    tmp_bytes = 2 * n_loop * out_h * out_w * 3
+    if tmp_bytes > 4 << 30:
+        raise ValueError(f"temp canvas would be {tmp_bytes / (1 << 30):.1f} GiB "
+                         f"({n_loop} loop frames); increase rows or reduce size")
     print(f"grid {rows}x{cols}, tile {tw}x{th}, "
           f"loop {n_loop} frames ({n_loop * den / num:.2f}s)")
 
