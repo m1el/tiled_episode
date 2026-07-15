@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# dependencies = ["numpy"]
+# ///
 """Convert a video into a seamlessly looping, sliding tileset.
 
 The input timeline is split across a grid of rows*cols tiles (wrapped like
