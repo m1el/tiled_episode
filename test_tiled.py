@@ -3,7 +3,7 @@ import subprocess
 import numpy as np
 import pytest
 
-from tiled import blit, layout, parse_color, parse_size, render, tile_x
+from tiled import blit, layout, parse_color, parse_size, render, subpixel, tile_x
 
 
 def test_layout():
@@ -32,6 +32,14 @@ def test_every_tile_visible():
     for k in range(rows * cols):
         assert any(0 <= tile_x(k, r, 0, cols, tw, False) <= out_w - tw
                    for r in range(rows))
+
+
+def test_subpixel():
+    assert subpixel(0, 88, 96) == (0, 0)
+    for n in range(88):
+        a, f = subpixel(n, 88, 96)
+        assert 0 <= f < 1
+        assert a + f == pytest.approx(96 * n / 88)
 
 
 def test_blit_clips():

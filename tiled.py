@@ -38,6 +38,12 @@ def layout(in_w, in_h, out_w, out_h, rows):
     return tw, th, cols
 
 
+def subpixel(n, n_loop, tw):
+    dx = tw * n / n_loop
+    a = int(dx)
+    return a, dx - a
+
+
 def tile_x(k, r, dx, cols, tw, snake):
     if snake and r % 2:
         return ((2 * r + 1) * cols - 1 - k) * tw - dx
@@ -65,7 +71,8 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops):
           f"loop {n_loop} frames ({n_loop * den / num:.2f}s)")
 
     with tempfile.NamedTemporaryFile(dir=Path(out).parent or None) as tmp:
-        canvas = np.memmap(tmp.name, np.uint8, "w+", shape=(n_loop, out_h, out_w, 3))
+        canvas = np.memmap(tmp.name, np.uint8, "w+",
+                           shape=(2, n_loop, out_h, out_w, 3))
         canvas[:] = bg
 
         dec = subprocess.Popen(
@@ -79,11 +86,12 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops):
                 break
             tile = np.frombuffer(buf, np.uint8).reshape(th, tw, 3)
             k, n = pad + f // n_loop, f % n_loop
-            dx = tw * n // n_loop
+            a, _ = subpixel(n, n_loop, tw)
             for r in range(rows):
-                x = tile_x(k, r, dx, cols, tw, snake)
-                if -tw < x < out_w:
-                    blit(canvas[n], tile, x, r * th)
+                for dx, plane in ((a, canvas[0]), (a + 1, canvas[1])):
+                    x = tile_x(k, r, dx, cols, tw, snake)
+                    if -tw < x < out_w:
+                        blit(plane[n], tile, x, r * th)
         while dec.stdout.read(1 << 20):
             pass
         dec.stdout.close()
@@ -101,7 +109,14 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops):
             stdin=subprocess.PIPE)
         for _ in range(loops):
             for n in range(n_loop):
-                enc.stdin.write(canvas[n].tobytes())
+                _, frac = subpixel(n, n_loop, tw)
+                if frac:
+                    frac = np.float32(frac)
+                    frame = (canvas[0, n] * (1 - frac) + canvas[1, n] * frac
+                             + 0.5).astype(np.uint8)
+                else:
+                    frame = canvas[0, n]
+                enc.stdin.write(frame.tobytes())
         enc.stdin.close()
         if enc.wait():
             raise RuntimeError("ffmpeg encode failed")
