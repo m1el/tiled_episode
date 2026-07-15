@@ -46,7 +46,7 @@ def subpixel(n, n_loop, tw):
 
 def tile_x(k, r, dx, cols, tw, snake):
     if snake and r % 2:
-        return ((2 * r + 1) * cols - 1 - k) * tw - dx
+        return ((r + 1) * cols - 1 - k) * tw - dx
     return (k - r * cols) * tw + dx
 
 

@@ -4,7 +4,8 @@ from argparse import Namespace
 import numpy as np
 import pytest
 
-from tiled import blit, layout, parse_color, parse_size, render, subpixel, tile_x
+from tiled import (blit, layout, parse_color, parse_size, render,
+                   render_tiles, subpixel, tile_x)
 
 
 def run_render(inp, out, **kw):
@@ -36,11 +37,42 @@ def test_seamless_handoff(snake):
                 tile_x(k + 1, r, 0, cols, tw, snake)
 
 
-def test_every_tile_visible():
+@pytest.mark.parametrize("snake", [False, True])
+def test_every_tile_visible(snake):
     rows, cols, tw, out_w = 3, 4, 10, 40
     for k in range(rows * cols):
-        assert any(0 <= tile_x(k, r, 0, cols, tw, False) <= out_w - tw
-                   for r in range(rows))
+        assert any(0 <= tile_x(k, r, 0, cols, tw, snake) <= out_w - tw
+                   for r in range(rows)), k
+
+
+def index_tile(f, th, tw):
+    t = np.empty((th, tw, 3), np.uint8)
+    t[:, :, 0] = f
+    t[:, :, 1] = np.arange(tw)
+    t[:, :, 2] = np.arange(th)[:, None]
+    return t
+
+
+@pytest.mark.parametrize("snake", [False, True])
+def test_seamless_wrap(snake):
+    rows, cols, tw, th, pad, n_loop = 2, 3, 4, 4, 1, 5
+    slots = rows * cols - 2 * pad
+    total = slots * n_loop
+    canvas = np.zeros((2, n_loop, rows * th, cols * tw, 3), np.uint8)
+    render_tiles(canvas, (index_tile(f, th, tw) for f in range(total)),
+                 n_loop, pad, rows, cols, tw, snake)
+    # frame n_loop built directly: the grid has slid one tile width and each
+    # slot shows the first frame of the next tile's chunk; seamless looping
+    # means it equals frame 0 exactly
+    nxt = np.zeros((rows * th, cols * tw, 3), np.uint8)
+    for k in range(rows * cols):
+        f = (k - pad + 1) * n_loop
+        if 0 <= f < total:
+            for r in range(rows):
+                x = tile_x(k, r, tw, cols, tw, snake)
+                if -tw < x < cols * tw:
+                    blit(nxt, index_tile(f, th, tw), x, r * th)
+    np.testing.assert_array_equal(nxt, canvas[0, 0])
 
 
 def test_subpixel():
