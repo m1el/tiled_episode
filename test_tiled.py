@@ -23,7 +23,7 @@ def test_layout():
 
 def test_layout_odd():
     tw, th, cols = layout(1280, 720, 640, 480, 7)
-    assert th == 480 // 7
+    assert th == -(-480 // 7)
     assert tw == round(th * 16 / 9)
     assert cols * tw >= 640 > (cols - 1) * tw
 
@@ -75,6 +75,14 @@ def test_seamless_wrap(snake):
     np.testing.assert_array_equal(nxt, canvas[0, 0])
 
 
+def test_uneven_rows_fill_height():
+    rows, cols, tw, th, n_loop = 3, 2, 4, 4, 2  # th = ceil(10 / 3)
+    canvas = np.full((2, n_loop, 10, cols * tw, 3), 255, np.uint8)
+    tiles = (index_tile(f, th, tw) for f in range(rows * cols * n_loop))
+    render_tiles(canvas, tiles, n_loop, 0, rows, cols, tw, False)
+    assert (canvas[0, 0] != 255).all()
+
+
 def test_subpixel():
     assert subpixel(0, 88, 96) == (0, 0)
     for n in range(88):
@@ -91,6 +99,8 @@ def test_blit_clips():
     blit(frame, tile, 8, 2)
     assert frame[2, 8:].sum() == 42
     blit(frame, tile, 20, 0)
+    blit(frame, tile, 0, 3)
+    assert frame[3, :4].sum() == 84
 
 
 def test_parsers():

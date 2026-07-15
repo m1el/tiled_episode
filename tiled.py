@@ -32,7 +32,7 @@ def probe(path):
 
 
 def layout(in_w, in_h, out_w, out_h, rows):
-    th = out_h // rows
+    th = -(-out_h // rows)
     tw = max(1, round(th * in_w / in_h))
     cols = math.ceil(out_w / tw)
     return tw, th, cols
@@ -53,8 +53,9 @@ def tile_x(k, r, dx, cols, tw, snake):
 def blit(frame, tile, x, y):
     th, tw = tile.shape[:2]
     x0, x1 = max(x, 0), min(x + tw, frame.shape[1])
+    y1 = min(y + th, frame.shape[0])
     if x0 < x1:
-        frame[y:y + th, x0:x1] = tile[:, x0 - x:x1 - x]
+        frame[y:y1, x0:x1] = tile[:y1 - y, x0 - x:x1 - x]
 
 
 def decode(inp, tw, th, total, subs, sub_style):
@@ -92,15 +93,16 @@ def decode(inp, tw, th, total, subs, sub_style):
 
 
 def render_tiles(canvas, tiles, n_loop, pad, rows, cols, tw, snake):
-    out_w = canvas.shape[3]
+    out_h, out_w = canvas.shape[2:4]
     for f, tile in enumerate(tiles):
         k, n = pad + f // n_loop, f % n_loop
         a, _ = subpixel(n, n_loop, tw)
         for r in range(rows):
+            y = round(r * out_h / rows)
             for dx, plane in ((a, canvas[0]), (a + 1, canvas[1])):
                 x = tile_x(k, r, dx, cols, tw, snake)
                 if -tw < x < out_w:
-                    blit(plane[n], tile, x, r * tile.shape[0])
+                    blit(plane[n], tile, x, y)
 
 
 def encode(canvas, out, num, den, qp, loops, tw):
