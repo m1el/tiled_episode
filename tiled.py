@@ -84,6 +84,8 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops):
                 x = tile_x(k, r, dx, cols, tw, snake)
                 if -tw < x < out_w:
                     blit(canvas[n], tile, x, r * th)
+        while dec.stdout.read(1 << 20):
+            pass
         dec.stdout.close()
         dec.wait()
 
