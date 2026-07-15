@@ -154,10 +154,10 @@ def render(a):
 
     with tempfile.NamedTemporaryFile(dir=Path(out).parent or None) as tmp:
         # The grid slides a fractional number of pixels per frame; rounding
-        # to whole pixels gives visibly uneven motion. So each frame is
-        # composited twice, at offsets floor(dx) and floor(dx)+1, and the
-        # encode pass lerps the planes by frac(dx) — equivalent to bilinear
-        # sampling of the strip at the true subpixel position.
+        # to whole pixels gives visibly uneven motion. So render_tiles
+        # composites every frame twice — plane 0 at offset floor(dx),
+        # plane 1 at floor(dx)+1 — and encode lerps the planes by frac(dx),
+        # i.e. bilinear sampling at the true subpixel position.
         canvas = np.memmap(tmp.name, np.uint8, "w+",
                            shape=(2, n_loop, out_h, out_w, 3))
         canvas[:] = bg
