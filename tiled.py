@@ -32,9 +32,9 @@ def probe(path):
 
 
 def layout(in_w, in_h, out_w, out_h, rows):
-    # round up so the rows cover the full height when it doesn't divide
-    # evenly; render_tiles spaces them to overlap by up to 1px instead of
-    # leaving a background strip at the bottom
+    # ceil: the rows cover the full height when it doesn't divide evenly;
+    # render_tiles spaces them to overlap by up to 1px instead of leaving
+    # a background strip at the bottom
     th = (out_h + rows - 1) // rows
     tw = max(1, round(th * in_w / in_h))
     cols = math.ceil(out_w / tw)
@@ -147,7 +147,7 @@ def render(a):
     slots = rows * cols - 2 * pad
     if slots < 1:
         raise ValueError(f"pad={pad} leaves no room in a {rows}x{cols} grid")
-    # round up so a partial last tile ends with background instead of the
+    # ceil: a partial last tile ends with background instead of the
     # remainder frames being trimmed off the end of the video
     n_loop = (frames + slots - 1) // slots
     if n_loop < 1:
