@@ -152,7 +152,8 @@ def render(a):
     print(f"grid {rows}x{cols}, tile {tw}x{th}, "
           f"loop {n_loop} frames ({n_loop * den / num:.2f}s)")
 
-    with tempfile.NamedTemporaryFile(dir=Path(out).parent) as tmp:
+    with tempfile.NamedTemporaryFile(dir=Path(out).parent,
+                                     suffix=".rgb24.tmp") as tmp:
         # The grid slides a fractional number of pixels per frame; rounding
         # to whole pixels gives visibly uneven motion. So render_tiles
         # composites every frame twice — plane 0 at offset floor(dx),
