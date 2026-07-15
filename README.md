@@ -9,6 +9,12 @@ tile k+1 began: the output loops seamlessly. A 24-minute episode at the
 default 20 rows becomes a ~3.7 s loop in which the entire episode is
 visible at once.
 
+## Example
+
+A 24 minute episode rendered to 3.7 second loop.
+
+[out.webm](https://github.com/user-attachments/assets/03a82c72-0171-4089-9eee-4214cef5cec6)
+
 ## Requirements
 
 - `ffmpeg` / `ffprobe` on PATH
