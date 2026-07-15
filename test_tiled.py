@@ -78,8 +78,8 @@ def probe_out(path):
 def test_render_e2e(clip, tmp_path):
     out = str(tmp_path / "out.mp4")
     render(clip, out, 3, None, 30, 0, np.zeros(3, np.uint8), False, 1)
-    # 100 frames, grid 3x4 -> 8 frames per tile
-    assert probe_out(out) == (64, 36, "10/1", 8)
+    # 100 frames, grid 3x4 -> ceil to 9 frames per tile, last tile part-bg
+    assert probe_out(out) == (64, 36, "10/1", 9)
 
 
 def decode_raw(path):

@@ -65,9 +65,11 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops,
     slots = rows * cols - 2 * pad
     if slots < 1:
         raise ValueError(f"pad={pad} leaves no room in a {rows}x{cols} grid")
-    n_loop = frames // slots
+    # ceil: a partial last tile ends with background instead of the
+    # remainder frames being trimmed off the end of the video
+    n_loop = -(-frames // slots)
     if n_loop < 1:
-        raise ValueError(f"input has {frames} frames, fewer than {slots} tiles")
+        raise ValueError("input has no frames")
     tmp_bytes = 2 * n_loop * out_h * out_w * 3
     if tmp_bytes > 4 << 30:
         raise ValueError(f"temp canvas would be {tmp_bytes / (1 << 30):.1f} GiB "
@@ -99,10 +101,14 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops,
                 cmd.append(f"--sub-ass-style-overrides={sub_style}")
         dec = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         fsize = tw * th * 3
-        for f in range(slots * n_loop):
+        total = slots * n_loop
+        for f in range(total):
             buf = dec.stdout.read(fsize)
             if len(buf) < fsize:
                 break
+            if f % 256 == 0:
+                print(f"\rdecoding {f}/{total} ({100 * f // total}%)",
+                      end="", file=sys.stderr, flush=True)
             tile = np.frombuffer(buf, np.uint8).reshape(th, tw, 3)
             k, n = pad + f // n_loop, f % n_loop
             a, _ = subpixel(n, n_loop, tw)
@@ -111,6 +117,7 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops,
                     x = tile_x(k, r, dx, cols, tw, snake)
                     if -tw < x < out_w:
                         blit(plane[n], tile, x, r * th)
+        print(f"\rdecoded {f + 1} frames        ", file=sys.stderr)
         while dec.stdout.read(1 << 20):
             pass
         dec.stdout.close()
