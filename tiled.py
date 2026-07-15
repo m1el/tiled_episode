@@ -32,7 +32,10 @@ def probe(path):
 
 
 def layout(in_w, in_h, out_w, out_h, rows):
-    th = -(-out_h // rows)
+    # round up so the rows cover the full height when it doesn't divide
+    # evenly; render_tiles spaces them to overlap by up to 1px instead of
+    # leaving a background strip at the bottom
+    th = (out_h + rows - 1) // rows
     tw = max(1, round(th * in_w / in_h))
     cols = math.ceil(out_w / tw)
     return tw, th, cols
@@ -51,6 +54,8 @@ def tile_x(k, r, dx, cols, tw, snake):
 
 
 def blit(frame, tile, x, y):
+    # clip to the frame: tiles slide past the left/right edges, and the
+    # last row can overhang the bottom because tile height is rounded up
     th, tw = tile.shape[:2]
     x0, x1 = max(x, 0), min(x + tw, frame.shape[1])
     y1 = min(y + th, frame.shape[0])
@@ -142,9 +147,9 @@ def render(a):
     slots = rows * cols - 2 * pad
     if slots < 1:
         raise ValueError(f"pad={pad} leaves no room in a {rows}x{cols} grid")
-    # ceil: a partial last tile ends with background instead of the
+    # round up so a partial last tile ends with background instead of the
     # remainder frames being trimmed off the end of the video
-    n_loop = -(-frames // slots)
+    n_loop = (frames + slots - 1) // slots
     if n_loop < 1:
         raise ValueError("input has no frames")
     tmp_bytes = 2 * n_loop * out_h * out_w * 3

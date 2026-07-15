@@ -23,7 +23,7 @@ def test_layout():
 
 def test_layout_odd():
     tw, th, cols = layout(1280, 720, 640, 480, 7)
-    assert th == -(-480 // 7)
+    assert th == (480 + 7 - 1) // 7
     assert tw == round(th * 16 / 9)
     assert cols * tw >= 640 > (cols - 1) * tw
 
