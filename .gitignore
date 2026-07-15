@@ -1,0 +1,4 @@
+.venv/
+*_tiled.mp4
+*_tiled.webm
+__pycache__/
