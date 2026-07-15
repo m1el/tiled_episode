@@ -150,23 +150,32 @@ def parse_color(s):
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("input")
-    p.add_argument("-o", "--output", help="output file (.mp4 or .webm)")
-    p.add_argument("-r", "--rows", type=int, default=20)
-    p.add_argument("-s", "--size", type=parse_size, help="WxH, default input size")
-    p.add_argument("-q", "--qp", type=int, default=24, help="codec CRF")
-    p.add_argument("-p", "--pad", type=int, default=0,
-                   help="background tiles at start and end")
+    p = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("input", help="input video file")
+    p.add_argument("-o", "--output",
+                   help="output file, .mp4 (x264) or .webm (VP9); "
+                        "default: <input>_tiled.mp4")
+    p.add_argument("-r", "--rows", type=int, default=20,
+                   help="tile rows in the grid (default: 20)")
+    p.add_argument("-s", "--size", type=parse_size, metavar="WxH",
+                   help="output resolution (default: input resolution)")
+    p.add_argument("-q", "--qp", type=int, default=24,
+                   help="encoder CRF, lower = better (default: 24)")
+    p.add_argument("-p", "--pad", type=int, default=0, metavar="N",
+                   help="pad start and end of the tile sequence with N "
+                        "background tiles each (default: 0)")
     p.add_argument("-b", "--bg", type=parse_color, default="000000",
-                   help="background hex color")
+                   metavar="RRGGBB", help="background hex color (default: black)")
     p.add_argument("--snake", action="store_true",
-                   help="boustrophedon rows, alternating slide direction")
+                   help="boustrophedon order: odd rows run right-to-left "
+                        "and slide the other way")
     p.add_argument("-l", "--loops", type=int, default=1,
-                   help="repeat the loop this many times in the output")
-    p.add_argument("-S", "--subs", type=int,
+                   help="repeat the loop N times in the output (default: 1)")
+    p.add_argument("-S", "--subs", type=int, metavar="N",
                    help="burn in subtitle track N (0-based; decodes via mpv)")
-    p.add_argument("--sub-style",
+    p.add_argument("--sub-style", metavar="STYLE",
                    help="libass style overrides, e.g. 'FontSize=64'")
     a = p.parse_args()
     out = a.output or Path(a.input).stem + "_tiled.mp4"
