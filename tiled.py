@@ -21,11 +21,14 @@ import numpy as np
 
 
 def probe(path):
-    out = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0",
-         "-show_entries", "stream=width,height,avg_frame_rate,nb_frames,duration",
-         "-show_entries", "format=duration", "-of", "json", path],
-        check=True, capture_output=True).stdout
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=width,height,avg_frame_rate,nb_frames,duration",
+             "-show_entries", "format=duration", "-of", "json", path],
+            check=True, capture_output=True).stdout
+    except FileNotFoundError:
+        sys.exit("ffprobe not found; install ffmpeg (e.g. `brew install ffmpeg`)")
     info = json.loads(out)
     s = info["streams"][0]
     num, den = map(int, s["avg_frame_rate"].split("/"))
