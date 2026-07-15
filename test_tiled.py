@@ -1,9 +1,18 @@
 import subprocess
+from argparse import Namespace
 
 import numpy as np
 import pytest
 
 from tiled import blit, layout, parse_color, parse_size, render, subpixel, tile_x
+
+
+def run_render(inp, out, **kw):
+    args = dict(input=inp, output=out, rows=3, size=None, qp=30, pad=0,
+                bg=np.zeros(3, np.uint8), snake=False, loops=1,
+                subs=None, sub_style=None)
+    args.update(kw)
+    render(Namespace(**args))
 
 
 def test_layout():
@@ -77,7 +86,7 @@ def probe_out(path):
 
 def test_render_e2e(clip, tmp_path):
     out = str(tmp_path / "out.mp4")
-    render(clip, out, 3, None, 30, 0, np.zeros(3, np.uint8), False, 1)
+    run_render(clip, out)
     # 100 frames, grid 3x4 -> ceil to 9 frames per tile, last tile part-bg
     assert probe_out(out) == (64, 36, "10/1", 9)
 
@@ -99,8 +108,8 @@ def test_render_subs(tmp_path):
          "-i", "testsrc=size=64x36:rate=10:duration=10",
          "-i", str(d / "s.srt"), "-c:s", "srt", inp], check=True)
     plain, subbed = str(tmp_path / "plain.mp4"), str(tmp_path / "subbed.mp4")
-    render(inp, plain, 3, None, 4, 0, np.zeros(3, np.uint8), False, 1)
-    render(inp, subbed, 3, None, 4, 0, np.zeros(3, np.uint8), False, 1, subs=0)
+    run_render(inp, plain, qp=4)
+    run_render(inp, subbed, qp=4, subs=0)
     a, b = decode_raw(plain), decode_raw(subbed)
     assert len(a) == len(b)
     assert a != b
@@ -109,13 +118,13 @@ def test_render_subs(tmp_path):
 def test_render_size_guard(clip, tmp_path):
     # 1 row upscaled to 4k: loop = all 100 frames, temp canvas ~4.6 GiB
     with pytest.raises(ValueError, match="GiB"):
-        render(clip, str(tmp_path / "x.mp4"), 1, (3840, 2160), 30, 0,
-               np.zeros(3, np.uint8), False, 1)
+        run_render(clip, str(tmp_path / "x.mp4"), rows=1, size=(3840, 2160))
 
 
 def test_render_pad_bg(clip, tmp_path):
     out = str(tmp_path / "out.webm")
-    render(clip, out, 3, (64, 36), 30, 1, parse_color("ff0000"), True, 2)
+    run_render(clip, out, size=(64, 36), pad=1, bg=parse_color("ff0000"),
+               snake=True, loops=2)
     w, h, fps, n = probe_out(out)
     assert (w, h, n) == (64, 36, 20)
     raw = subprocess.run(

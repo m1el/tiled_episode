@@ -57,8 +57,83 @@ def blit(frame, tile, x, y):
         frame[y:y + th, x0:x1] = tile[:, x0 - x:x1 - x]
 
 
-def render(inp, out, rows, size, qp, pad, bg, snake, loops,
-           subs=None, sub_style=None):
+def decode(inp, tw, th, total, subs, sub_style):
+    """Yield up to `total` tile-sized rgb24 frames."""
+    if subs is None:
+        cmd = ["ffmpeg", "-v", "error", "-i", inp, "-map", "0:v:0",
+               "-vf", f"scale={tw}:{th}",
+               "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    else:
+        # homebrew ffmpeg often lacks libass; mpv always bundles it
+        cmd = ["mpv", inp, "--msg-level=all=error", "--no-audio",
+               f"--sid={subs + 1}",
+               f"--vf=scale={tw}:{th},format=rgb24",
+               "--of=rawvideo", "--ovc=rawvideo", "--o=-"]
+        if sub_style:
+            cmd.append(f"--sub-ass-style-overrides={sub_style}")
+    dec = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    fsize = tw * th * 3
+    n_read = 0
+    for f in range(total):
+        buf = dec.stdout.read(fsize)
+        if len(buf) < fsize:
+            break
+        n_read = f + 1
+        if f % 256 == 0:
+            print(f"\rdecoding {f}/{total} ({100 * f // total}%)",
+                  end="", file=sys.stderr, flush=True)
+        yield np.frombuffer(buf, np.uint8).reshape(th, tw, 3)
+    print(f"\rdecoded {n_read} frames        ", file=sys.stderr)
+    while dec.stdout.read(1 << 20):
+        pass
+    dec.stdout.close()
+    if dec.wait():
+        raise RuntimeError("decode failed")
+
+
+def render_tiles(canvas, tiles, n_loop, pad, rows, cols, tw, snake):
+    out_w = canvas.shape[3]
+    for f, tile in enumerate(tiles):
+        k, n = pad + f // n_loop, f % n_loop
+        a, _ = subpixel(n, n_loop, tw)
+        for r in range(rows):
+            for dx, plane in ((a, canvas[0]), (a + 1, canvas[1])):
+                x = tile_x(k, r, dx, cols, tw, snake)
+                if -tw < x < out_w:
+                    blit(plane[n], tile, x, r * tile.shape[0])
+
+
+def encode(canvas, out, num, den, qp, loops, tw):
+    _, n_loop, out_h, out_w, _ = canvas.shape
+    if out.endswith(".webm"):
+        codec = ["-c:v", "libvpx-vp9", "-crf", str(qp), "-b:v", "0",
+                 "-row-mt", "1", "-cpu-used", "4"]
+    else:
+        codec = ["-c:v", "libx264", "-crf", str(qp), "-preset", "veryfast"]
+    enc = subprocess.Popen(
+        ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
+         "-s", f"{out_w}x{out_h}", "-r", f"{num}/{den}", "-i", "-",
+         *codec, "-pix_fmt", "yuv420p", out],
+        stdin=subprocess.PIPE)
+    for _ in range(loops):
+        for n in range(n_loop):
+            _, frac = subpixel(n, n_loop, tw)
+            if frac:
+                frac = np.float32(frac)
+                frame = (canvas[0, n] * (1 - frac) + canvas[1, n] * frac
+                         + 0.5).astype(np.uint8)
+            else:
+                frame = canvas[0, n]
+            enc.stdin.write(frame.tobytes())
+    enc.stdin.close()
+    if enc.wait():
+        raise RuntimeError("ffmpeg encode failed")
+
+
+def render(a):
+    inp, out, rows, pad = a.input, a.output, a.rows, a.pad
+    size, bg, snake, qp, loops = a.size, a.bg, a.snake, a.qp, a.loops
+    subs, sub_style = a.subs, a.sub_style
     in_w, in_h, num, den, frames = probe(inp)
     out_w, out_h = size or (in_w, in_h)
     tw, th, cols = layout(in_w, in_h, out_w, out_h, rows)
@@ -87,68 +162,9 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops,
                            shape=(2, n_loop, out_h, out_w, 3))
         canvas[:] = bg
 
-        if subs is None:
-            cmd = ["ffmpeg", "-v", "error", "-i", inp, "-map", "0:v:0",
-                   "-vf", f"scale={tw}:{th}",
-                   "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
-        else:
-            # homebrew ffmpeg often lacks libass; mpv always bundles it
-            cmd = ["mpv", inp, "--msg-level=all=error", "--no-audio",
-                   f"--sid={subs + 1}",
-                   f"--vf=scale={tw}:{th},format=rgb24",
-                   "--of=rawvideo", "--ovc=rawvideo", "--o=-"]
-            if sub_style:
-                cmd.append(f"--sub-ass-style-overrides={sub_style}")
-        dec = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-        fsize = tw * th * 3
-        total = slots * n_loop
-        n_read = 0
-        for f in range(total):
-            buf = dec.stdout.read(fsize)
-            if len(buf) < fsize:
-                break
-            n_read = f + 1
-            if f % 256 == 0:
-                print(f"\rdecoding {f}/{total} ({100 * f // total}%)",
-                      end="", file=sys.stderr, flush=True)
-            tile = np.frombuffer(buf, np.uint8).reshape(th, tw, 3)
-            k, n = pad + f // n_loop, f % n_loop
-            a, _ = subpixel(n, n_loop, tw)
-            for r in range(rows):
-                for dx, plane in ((a, canvas[0]), (a + 1, canvas[1])):
-                    x = tile_x(k, r, dx, cols, tw, snake)
-                    if -tw < x < out_w:
-                        blit(plane[n], tile, x, r * th)
-        print(f"\rdecoded {n_read} frames        ", file=sys.stderr)
-        while dec.stdout.read(1 << 20):
-            pass
-        dec.stdout.close()
-        if dec.wait():
-            raise RuntimeError("decode failed")
-
-        if out.endswith(".webm"):
-            codec = ["-c:v", "libvpx-vp9", "-crf", str(qp), "-b:v", "0",
-                     "-row-mt", "1", "-cpu-used", "4"]
-        else:
-            codec = ["-c:v", "libx264", "-crf", str(qp), "-preset", "veryfast"]
-        enc = subprocess.Popen(
-            ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
-             "-s", f"{out_w}x{out_h}", "-r", f"{num}/{den}", "-i", "-",
-             *codec, "-pix_fmt", "yuv420p", out],
-            stdin=subprocess.PIPE)
-        for _ in range(loops):
-            for n in range(n_loop):
-                _, frac = subpixel(n, n_loop, tw)
-                if frac:
-                    frac = np.float32(frac)
-                    frame = (canvas[0, n] * (1 - frac) + canvas[1, n] * frac
-                             + 0.5).astype(np.uint8)
-                else:
-                    frame = canvas[0, n]
-                enc.stdin.write(frame.tobytes())
-        enc.stdin.close()
-        if enc.wait():
-            raise RuntimeError("ffmpeg encode failed")
+        tiles = decode(inp, tw, th, slots * n_loop, subs, sub_style)
+        render_tiles(canvas, tiles, n_loop, pad, rows, cols, tw, snake)
+        encode(canvas, out, num, den, qp, loops, tw)
     print(f"wrote {out}")
 
 
@@ -191,9 +207,8 @@ def main():
     p.add_argument("--sub-style", metavar="STYLE",
                    help="libass style overrides, e.g. 'FontSize=64'")
     a = p.parse_args()
-    out = a.output or Path(a.input).stem + "_tiled.mp4"
-    render(a.input, out, a.rows, a.size, a.qp, a.pad, a.bg, a.snake, a.loops,
-           a.subs, a.sub_style)
+    a.output = a.output or Path(a.input).stem + "_tiled.mp4"
+    render(a)
 
 
 if __name__ == "__main__":
