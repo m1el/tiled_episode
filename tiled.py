@@ -102,10 +102,12 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops,
         dec = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         fsize = tw * th * 3
         total = slots * n_loop
+        n_read = 0
         for f in range(total):
             buf = dec.stdout.read(fsize)
             if len(buf) < fsize:
                 break
+            n_read = f + 1
             if f % 256 == 0:
                 print(f"\rdecoding {f}/{total} ({100 * f // total}%)",
                       end="", file=sys.stderr, flush=True)
@@ -117,7 +119,7 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops,
                     x = tile_x(k, r, dx, cols, tw, snake)
                     if -tw < x < out_w:
                         blit(plane[n], tile, x, r * th)
-        print(f"\rdecoded {f + 1} frames        ", file=sys.stderr)
+        print(f"\rdecoded {n_read} frames        ", file=sys.stderr)
         while dec.stdout.read(1 << 20):
             pass
         dec.stdout.close()
