@@ -82,6 +82,30 @@ def test_render_e2e(clip, tmp_path):
     assert probe_out(out) == (64, 36, "10/1", 8)
 
 
+def decode_raw(path):
+    return subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", path,
+         "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+        check=True, capture_output=True).stdout
+
+
+def test_render_subs(tmp_path):
+    d = tmp_path / "it's [a], test;dir"
+    d.mkdir()
+    (d / "s.srt").write_text("1\n00:00:00,000 --> 00:00:09,000\nHELLO WORLD\n")
+    inp = str(d / "clip.mkv")
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi",
+         "-i", "testsrc=size=64x36:rate=10:duration=10",
+         "-i", str(d / "s.srt"), "-c:s", "srt", inp], check=True)
+    plain, subbed = str(tmp_path / "plain.mp4"), str(tmp_path / "subbed.mp4")
+    render(inp, plain, 3, None, 4, 0, np.zeros(3, np.uint8), False, 1)
+    render(inp, subbed, 3, None, 4, 0, np.zeros(3, np.uint8), False, 1, subs=0)
+    a, b = decode_raw(plain), decode_raw(subbed)
+    assert len(a) == len(b)
+    assert a != b
+
+
 def test_render_pad_bg(clip, tmp_path):
     out = str(tmp_path / "out.webm")
     render(clip, out, 3, (64, 36), 30, 1, parse_color("ff0000"), True, 2)

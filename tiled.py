@@ -57,7 +57,8 @@ def blit(frame, tile, x, y):
         frame[y:y + th, x0:x1] = tile[:, x0 - x:x1 - x]
 
 
-def render(inp, out, rows, size, qp, pad, bg, snake, loops):
+def render(inp, out, rows, size, qp, pad, bg, snake, loops,
+           subs=None, sub_style=None):
     in_w, in_h, num, den, frames = probe(inp)
     out_w, out_h = size or (in_w, in_h)
     tw, th, cols = layout(in_w, in_h, out_w, out_h, rows)
@@ -80,10 +81,19 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops):
                            shape=(2, n_loop, out_h, out_w, 3))
         canvas[:] = bg
 
-        dec = subprocess.Popen(
-            ["ffmpeg", "-v", "error", "-i", inp, "-map", "0:v:0",
-             "-vf", f"scale={tw}:{th}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
-            stdout=subprocess.PIPE)
+        if subs is None:
+            cmd = ["ffmpeg", "-v", "error", "-i", inp, "-map", "0:v:0",
+                   "-vf", f"scale={tw}:{th}",
+                   "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+        else:
+            # homebrew ffmpeg often lacks libass; mpv always bundles it
+            cmd = ["mpv", inp, "--msg-level=all=error", "--no-audio",
+                   f"--sid={subs + 1}",
+                   f"--vf=scale={tw}:{th},format=rgb24",
+                   "--of=rawvideo", "--ovc=rawvideo", "--o=-"]
+            if sub_style:
+                cmd.append(f"--sub-ass-style-overrides={sub_style}")
+        dec = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         fsize = tw * th * 3
         for f in range(slots * n_loop):
             buf = dec.stdout.read(fsize)
@@ -100,7 +110,8 @@ def render(inp, out, rows, size, qp, pad, bg, snake, loops):
         while dec.stdout.read(1 << 20):
             pass
         dec.stdout.close()
-        dec.wait()
+        if dec.wait():
+            raise RuntimeError("decode failed")
 
         if out.endswith(".webm"):
             codec = ["-c:v", "libvpx-vp9", "-crf", str(qp), "-b:v", "0",
@@ -153,9 +164,14 @@ def main():
                    help="boustrophedon rows, alternating slide direction")
     p.add_argument("-l", "--loops", type=int, default=1,
                    help="repeat the loop this many times in the output")
+    p.add_argument("-S", "--subs", type=int,
+                   help="burn in subtitle track N (0-based; decodes via mpv)")
+    p.add_argument("--sub-style",
+                   help="libass style overrides, e.g. 'FontSize=64'")
     a = p.parse_args()
     out = a.output or Path(a.input).stem + "_tiled.mp4"
-    render(a.input, out, a.rows, a.size, a.qp, a.pad, a.bg, a.snake, a.loops)
+    render(a.input, out, a.rows, a.size, a.qp, a.pad, a.bg, a.snake, a.loops,
+           a.subs, a.sub_style)
 
 
 if __name__ == "__main__":
